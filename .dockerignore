@@ -1,0 +1,14 @@
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.env
+.git
+venv/
+__pycache__/
+*.pyc
+.env
+postgres_data/
+static_volume/
+media_volume/
+vol/
