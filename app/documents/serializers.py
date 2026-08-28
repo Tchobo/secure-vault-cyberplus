@@ -1,7 +1,8 @@
 from rest_framework import serializers
-from apps.documents.models import Document, DocumentShare, AuditLog
-from apps.users.serializers import UserSerializer
-from apps.documents.validators import (
+from documents.models import Document, DocumentShare, AuditLog
+from users.models import User
+from users.serializers import UserSerializer
+from documents.validators import (
     validate_file_extension,
     validate_file_size,
     validate_file_content
@@ -12,16 +13,22 @@ from apps.documents.validators import (
 class DocumentSerializer(serializers.ModelSerializer):
     owner = UserSerializer(read_only=True)
     file = serializers.FileField(
-        validators=[validate_file_extension, validate_file_size, validate_file_content]
+        validators=[validate_file_extension, validate_file_size, validate_file_content],
+        help_text='Fichier à uploader — chiffré côté serveur avant stockage. '
+                   'Extensions/taille/contenu réel validés (voir settings ALLOWED_FILE_EXTENSIONS / MAX_UPLOAD_SIZE).'
     )
     
     class Meta:
         model = Document
         fields = [
             'id', 'name', 'file', 'owner', 'is_active',
+            'sha256', 'is_encrypted', 'original_size',
             'created_at', 'updated_at'
         ]
-        read_only_fields = ['id', 'owner', 'created_at', 'updated_at']
+        read_only_fields = [
+            'id', 'owner', 'is_active', 'sha256', 'is_encrypted', 'original_size',
+            'created_at', 'updated_at'
+        ]
 
 
 class DocumentListSerializer(serializers.ModelSerializer):
@@ -34,18 +41,17 @@ class DocumentListSerializer(serializers.ModelSerializer):
 
 # ✅ NOUVEAUX : Serializers pour le partage
 class DocumentShareSerializer(serializers.Serializer):
-    """Partager un document avec un utilisateur"""
-    user_email = serializers.EmailField()
-    
-    def validate_user_email(self, value):
-        from apps.users.models import User
-        
-        try:
-            user = User.objects.get(email=value, is_active=True, is_verified=True)
-        except User.DoesNotExist:
-            raise serializers.ValidationError("Utilisateur non trouvé ou inactif")
-        
-        return value
+    """Partager (ou révoquer) un document avec un ou plusieurs utilisateurs.
+
+    L'existence/l'état (actif+vérifié) de chaque utilisateur n'est PAS vérifié
+    ici : la vue traite chaque email indépendamment (best-effort) et rapporte
+    un statut par email, pour qu'un email invalide ne bloque pas les autres.
+    """
+    user_emails = serializers.ListField(
+        child=serializers.EmailField(),
+        allow_empty=False,
+        help_text="Email(s) des utilisateurs avec qui partager (ou à qui révoquer l'accès)."
+    )
 
 
 class SharedUserSerializer(serializers.ModelSerializer):
@@ -53,7 +59,7 @@ class SharedUserSerializer(serializers.ModelSerializer):
     shared_at = serializers.SerializerMethodField()
     
     class Meta:
-        model = serializers.ModelSerializer.Meta.model
+        model = User
         fields = ['id', 'email', 'firstname', 'lastname', 'shared_at']
     
     def get_shared_at(self, obj):
