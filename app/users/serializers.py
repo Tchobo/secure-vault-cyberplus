@@ -1,10 +1,10 @@
 from rest_framework import serializers
-from apps.users.models import User
+from users.models import User
 from django.contrib.auth import authenticate
 
 
 class UserRegistrationSerializer(serializers.ModelSerializer):
-    password = serializers.CharField(write_only=True, min_length=8)
+    password = serializers.CharField(write_only=True, min_length=8, help_text='8 caractères minimum.')
     
     class Meta:
         model = User
@@ -22,12 +22,12 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
 
 class EmailVerificationSerializer(serializers.Serializer):
-    token = serializers.CharField()
+    token = serializers.CharField(help_text="Token reçu dans le lien de vérification envoyé par email (valide 24h).")
 
 
 class UserLoginSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
+    email = serializers.EmailField(help_text='Email du compte.')
+    password = serializers.CharField(write_only=True, help_text='Mot de passe du compte.')
     
     def validate(self, data):
         email = data.get('email')

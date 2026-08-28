@@ -1,20 +1,20 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
-from rest_framework import status
+from rest_framework import serializers, status
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
 from django.core.mail import send_mail
 from django.conf import settings
-from drf_spectacular.utils import extend_schema, OpenApiParameter
+from drf_spectacular.utils import extend_schema, inline_serializer
 
-from apps.users.models import User
-from apps.users.serializers import (
+from users.models import User
+from users.serializers import (
     UserRegistrationSerializer,
     EmailVerificationSerializer,
     UserLoginSerializer,
     UserSerializer
 )
-from apps.users.utils import generate_verification_token, verify_token
+from users.utils import generate_verification_token, verify_token
 
 
 class UserRegistrationView(APIView):
@@ -22,6 +22,10 @@ class UserRegistrationView(APIView):
     permission_classes = [AllowAny]
     
     @extend_schema(
+        tags=['auth'],
+        summary='Créer un compte',
+        description="Crée un compte utilisateur (inactif tant que l'email n'est pas vérifié) "
+                    "et envoie un email contenant le lien de vérification.",
         request=UserRegistrationSerializer,
         responses={201: UserRegistrationSerializer}
     )
@@ -51,6 +55,9 @@ class EmailVerificationView(APIView):
     permission_classes = [AllowAny]
     
     @extend_schema(
+        tags=['auth'],
+        summary="Vérifier l'email",
+        description="Active le compte à partir du token reçu par email (signé, valide 24h).",
         request=EmailVerificationSerializer,
         responses={200: {'description': 'Email vérifié avec succès'}}
     )
@@ -90,15 +97,18 @@ class UserLoginView(APIView):
     permission_classes = [AllowAny]
     
     @extend_schema(
+        tags=['auth'],
+        summary='Se connecter',
+        description='Authentifie un compte vérifié et actif, renvoie une paire de tokens JWT (access/refresh).',
         request=UserLoginSerializer,
-        responses={200: {
-            'type': 'object',
-            'properties': {
-                'access': {'type': 'string'},
-                'refresh': {'type': 'string'},
-                'user': UserSerializer
+        responses={200: inline_serializer(
+            name='LoginResponse',
+            fields={
+                'access': serializers.CharField(),
+                'refresh': serializers.CharField(),
+                'user': UserSerializer(),
             }
-        }}
+        )}
     )
     def post(self, request):
         serializer = UserLoginSerializer(data=request.data)

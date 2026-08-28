@@ -1,6 +1,4 @@
-import secrets
 from django.core.signing import TimestampSigner, BadSignature, SignatureExpired
-from django.conf import settings
 
 
 def generate_verification_token(user):

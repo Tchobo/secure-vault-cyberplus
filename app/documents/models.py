@@ -8,8 +8,8 @@ class Document(models.Model):
     """Modèle Document simplifié"""
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    name = models.CharField(max_length=255)
-    file = models.FileField(upload_to='documents/')
+    name = models.CharField(max_length=255, help_text='Nom affiché du document.')
+    file = models.FileField(upload_to='documents/', help_text='Contenu chiffré (Fernet) stocké sur le serveur.')
     
     owner = models.ForeignKey(
         settings.AUTH_USER_MODEL,
@@ -21,14 +21,26 @@ class Document(models.Model):
         settings.AUTH_USER_MODEL,
         related_name='shared_documents',
         blank=True,
-        through='DocumentShare'  # ✅ Table intermédiaire pour audit
+        through='DocumentShare',  # ✅ Table intermédiaire pour audit
+        through_fields=('document', 'shared_with'),
     )
     
-    is_active = models.BooleanField(default=True)
-    
+    is_active = models.BooleanField(
+        default=True,
+        help_text="Piloté via les endpoints activate/deactivate, pas modifiable à l'upload."
+    )
+
+    # Sécurité : hash du contenu ORIGINAL (avant chiffrement), pour détecter le tampering
+    sha256 = models.CharField(
+        max_length=64, blank=True,
+        help_text='SHA-256 du contenu original (avant chiffrement), revérifié à chaque download.'
+    )
+    is_encrypted = models.BooleanField(default=True, help_text='Toujours true pour les documents créés depuis la Phase 1.')
+    original_size = models.PositiveBigIntegerField(default=0, help_text='Taille en bytes du fichier original (avant chiffrement).')
+
     created_at = models.DateTimeField(auto_now_add=True)
     updated_at = models.DateTimeField(auto_now=True)
-    
+
     class Meta:
         db_table = 'documents'
         ordering = ['-created_at']

@@ -7,7 +7,7 @@ services:
     command: >
       sh -c "python manage.py wait_for_db &&
               python manage.py migrate &&
-              python manage.py runserver 0.0.0.0:8080"
+              python manage.py runserver 0.0.0.0:8000"
     volumes:
       - ./app:/app
       - static_volume:/vol/web/static
@@ -18,6 +18,26 @@ services:
       - .env
     depends_on:
       - db
+
+  clamav:
+    # Anti-malware scanner — opt-in via `docker compose --profile scan up`.
+    # Kept behind a profile so a plain `docker compose up` doesn't pull the
+    # ~200 MB image and wait ~5 min for freshclam on first boot when the
+    # feature is disabled anyway (CLAMAV_ENABLED=False by default).
+    # Set CLAMAV_ENABLED=True in .env when you start this profile.
+    profiles: ["scan"]
+    image: clamav/clamav:stable
+    container_name: securevault_clamav
+    ports:
+      - "3310:3310"
+    volumes:
+      - clamav_data:/var/lib/clamav
+    healthcheck:
+      test: ["CMD", "clamdcheck.sh"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 5m
 
   db:
     image: postgres:14
@@ -35,3 +55,4 @@ volumes:
   postgres_data:
   static_volume:
   media_volume:
+  clamav_data:
