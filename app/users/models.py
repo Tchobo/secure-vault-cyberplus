@@ -1,6 +1,3 @@
-from django.db import models
-
-# Create your models here.
 import uuid
 from django.contrib.auth.models import AbstractBaseUser, BaseUserManager, PermissionsMixin
 from django.db import models
@@ -27,13 +24,16 @@ class User(AbstractBaseUser, PermissionsMixin):
     """Modèle User simplifié - GDPR compliant"""
     
     id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
-    email = models.EmailField(unique=True, db_index=True)
-    firstname = models.CharField(max_length=100)
-    lastname = models.CharField(max_length=100)
-    
-    
-    is_active = models.BooleanField(default=False)
-    is_verified = models.BooleanField(default=False)
+    email = models.EmailField(unique=True, db_index=True, help_text="Sert d'identifiant de connexion.")
+    firstname = models.CharField(max_length=100, help_text='Prénom.')
+    lastname = models.CharField(max_length=100, help_text='Nom de famille.')
+
+
+    is_active = models.BooleanField(
+        default=False,
+        help_text='Compte activé (passe à true après vérification de l\'email).'
+    )
+    is_verified = models.BooleanField(default=False, help_text="Email vérifié via le lien envoyé à l'inscription.")
     is_staff = models.BooleanField(default=False)
     
     

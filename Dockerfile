@@ -18,7 +18,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # ✅ Copier requirements.txt depuis backend/
 COPY requirements.txt /requirements.txt
-RUN pip install --upgrade pip && pip install -r requirements.txt
+RUN pip install --upgrade pip && pip install -r /requirements.txt
 
 # ✅ Copier tout le dossier backend dans /app/backend
 COPY ./app /app
