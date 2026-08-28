@@ -1,21 +1,24 @@
 Django>=3.2.4,<3.3
 djangorestframework>=3.12.4,<3.13
-psycopg2>=2.8.6,<2.9
+psycopg2>=2.9.9
 drf-spectacular>=0.15.1,<0.16
 Pillow>=8.2.0,<8.3.0
 djoser>=2.1.0,<3.0.0
 djangorestframework-simplejwt>=5.0.0,<6.0.0
 uuid
-drf-yasg
 django-cors-headers
+python-magic
 
 gunicorn==21.2
 whitenoise==6.6
-django-storages==1.14  # Pour S3 si besoin
-boto3==1.34  # AWS S3
+django-storages==1.14  # backend S3 optionnel (USE_S3=True), voir settings.py
+boto3==1.34
 
 python-decouple==3.8
+cryptography>=42.0
+clamd==1.0.2  # anti-malware scanning via clamd daemon (see documents/malware.py)
 pytest==7.4.4
 pytest-django==4.7.0
+pytest-cov==4.1.0
 factory-boy==3.3.0
 Faker==22.0.0

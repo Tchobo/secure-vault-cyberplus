@@ -10,27 +10,20 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/3.2/ref/settings/
 """
 
+from datetime import timedelta
 from pathlib import Path
 from decouple import config
 
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
-SECRET_KEY = config('SECRET_KEY', default='dev-secret-key-change-in-production')
-DEBUG = config('DEBUG', default=True, cast=bool)
-ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
-
-
-
-# Quick-start development settings - unsuitable for production
-# See https://docs.djangoproject.com/en/3.2/howto/deployment/checklist/
 
 # SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = 'django-insecure-t6t)7qcb(q793*a0dkfu5k&99$86gf)=sb)epl46=os0p65pyd'
+SECRET_KEY = config('SECRET_KEY', default='dev-secret-key-change-in-production')
 
 # SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
+DEBUG = config('DEBUG', default=True, cast=bool)
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = config('ALLOWED_HOSTS', default='localhost,127.0.0.1').split(',')
 
 
 # Application definition
@@ -88,13 +81,36 @@ REST_FRAMEWORK = {
     'DEFAULT_PERMISSION_CLASSES': [
         'rest_framework.permissions.IsAuthenticated',
     ],
+    'DEFAULT_THROTTLE_CLASSES': [
+        'rest_framework.throttling.UserRateThrottle',
+    ],
+    'DEFAULT_THROTTLE_RATES': {
+        'upload': '10/min',
+        'download': '30/min',
+        'user': '100/hour',
+    },
 }
 
 SPECTACULAR_SETTINGS = {
     'TITLE': 'SecureVault API',
-    'DESCRIPTION': 'API de stockage et partage de documents sécurisés - GDPR compliant',
+    'DESCRIPTION': (
+        'API de stockage et partage de documents sécurisés - GDPR compliant.\n\n'
+        'Chiffrement at-rest (Fernet/AES), intégrité SHA-256 vérifiée au téléchargement, '
+        'rate limiting et piste d\'audit (RGPD Article 30).'
+    ),
     'VERSION': '1.0.0',
+    'CONTACT': {'name': 'Rico', 'email': 'ricostous@gmail.com'},
+    'LICENSE': {'name': 'MIT'},
     'SERVE_INCLUDE_SCHEMA': False,
+    'TAGS': [
+        {'name': 'auth', 'description': "Inscription, vérification d'email, authentification JWT"},
+        {'name': 'documents', 'description': 'Upload, téléchargement et gestion des documents chiffrés'},
+    ],
+    # Sépare les schémas request/response : sans ça, un FileField partagé entre
+    # `request=` et `responses=` sur la même vue est documenté avec sa
+    # représentation de sortie (format: uri) au lieu du format: binary attendu
+    # en entrée — Swagger UI n'affiche alors pas de bouton d'upload de fichier.
+    'COMPONENT_SPLIT_REQUEST': True,
 }
 # Database
 # https://docs.djangoproject.com/en/3.2/ref/settings/#databases
@@ -110,32 +126,65 @@ DATABASES = {
     }
 }
 
-# Static files
+
+# Storage — disque local par défaut. USE_S3=True (+ credentials) bascule le
+# backend physique vers S3, SANS rien changer au modèle de sécurité : Django
+# continue de chiffrer (Fernet) avant écriture et de déchiffrer au download
+# (voir documents/views.py), le client n'accède jamais directement au bucket.
+# Pas d'URL présignée (AWS_QUERYSTRING_AUTH=False) — cf. décision dans le
+# README (« Décision : stockage local + Fernet, pas d'URLs présignées S3 »),
+# qui reste valable même quand le stockage physique est S3.
+USE_S3 = config('USE_S3', default=False, cast=bool)
+
+# Static files — toujours locales (servies par whitenoise), S3 ne concerne
+# que les documents uploadés (MEDIA) ci-dessous.
 STATIC_URL = '/static/'
 STATIC_ROOT = '/vol/web/static'
 
-# Media files
-MEDIA_URL = '/media/'
-MEDIA_ROOT = '/vol/web/media'
-
-# Limites fichiers
-from datetime import timedelta
+if USE_S3:
+    AWS_ACCESS_KEY_ID = config('AWS_ACCESS_KEY_ID')
+    AWS_SECRET_ACCESS_KEY = config('AWS_SECRET_ACCESS_KEY')
+    AWS_STORAGE_BUCKET_NAME = config('AWS_STORAGE_BUCKET_NAME')
+    AWS_S3_REGION_NAME = config('AWS_S3_REGION_NAME', default='eu-west-3')
+    AWS_S3_FILE_OVERWRITE = False
+    # Pas d'ACL : les buckets créés depuis ~2023 ont les ACLs désactivées par
+    # défaut ("Bucket owner enforced", recommandé par AWS) — y forcer une ACL
+    # objet lève AccessControlListNotSupported. La confidentialité vient du
+    # Block Public Access du bucket (activé par défaut) + de l'absence totale
+    # d'URL présignée (ci-dessous), pas d'une ACL par objet.
+    AWS_DEFAULT_ACL = None
+    AWS_QUERYSTRING_AUTH = False
+    AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.{AWS_S3_REGION_NAME}.amazonaws.com'
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
+else:
+    MEDIA_URL = '/media/'
+    MEDIA_ROOT = '/vol/web/media'
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),
     'REFRESH_TOKEN_LIFETIME': timedelta(days=7),
 }
 
-# Spectacular (Swagger)
-SPECTACULAR_SETTINGS = {
-    'TITLE': 'SecureVault API',
-    'DESCRIPTION': 'API de stockage sécurisé de documents - GDPR compliant',
-    'VERSION': '1.0.0',
-}
-
 # Upload settings
 MAX_UPLOAD_SIZE = config('MAX_UPLOAD_SIZE', default=10485760, cast=int)  # 10MB
 ALLOWED_FILE_EXTENSIONS = config('ALLOWED_FILE_EXTENSIONS', default='pdf,docx,xlsx,txt,png,jpg,jpeg').split(',')
+
+# Encryption at rest — master key for Fernet (generate with Fernet.generate_key())
+VAULT_ENCRYPTION_KEY = config('VAULT_ENCRYPTION_KEY')
+
+# Malware scanning — ClamAV daemon over TCP. Fail-closed: when enabled and
+# daemon unreachable, uploads are rejected. Disabled by default so dev/CI
+# don't need a running clamd instance.
+CLAMAV_ENABLED = config('CLAMAV_ENABLED', default=False, cast=bool)
+CLAMAV_HOST = config('CLAMAV_HOST', default='clamav')
+CLAMAV_PORT = config('CLAMAV_PORT', default=3310, cast=int)
+CLAMAV_TIMEOUT = config('CLAMAV_TIMEOUT', default=30, cast=int)
+
+# Email (vérification de compte)
+EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@securevault.com')
+FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
 
 # CORS (pour dev)
 CORS_ALLOW_ALL_ORIGINS = True  # ⚠️ À restreindre en prod
@@ -171,11 +220,6 @@ USE_L10N = True
 
 USE_TZ = True
 
-
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/3.2/howto/static-files/
-
-STATIC_URL = '/static/'
 
 # Default primary key field type
 # https://docs.djangoproject.com/en/3.2/ref/settings/#default-auto-field
