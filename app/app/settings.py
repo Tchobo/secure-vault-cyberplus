@@ -159,7 +159,10 @@ if USE_S3:
     MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
 else:
     MEDIA_URL = '/media/'
-    MEDIA_ROOT = '/vol/web/media'
+    # Configurable — /vol/web/media est créé par le Dockerfile (dev/prod),
+    # mais un runner CI vanilla ne peut pas écrire dans /vol sans sudo.
+    # La CI setter MEDIA_ROOT=/tmp/media dans son bloc env.
+    MEDIA_ROOT = config('MEDIA_ROOT', default='/vol/web/media')
 
 SIMPLE_JWT = {
     'ACCESS_TOKEN_LIFETIME': timedelta(hours=1),

@@ -66,6 +66,10 @@ jobs:
       VAULT_ENCRYPTION_KEY: C0REAiJuPpvw9qqJ8rjS0XTk60EzGR0ZdAj1jKv0RWM=  # pragma: allowlist secret
       MAX_UPLOAD_SIZE: '10485760'
       ALLOWED_FILE_EXTENSIONS: pdf,docx,xlsx,txt,png,jpg,jpeg
+      # MEDIA_ROOT par défaut = /vol/web/media (créé par le Dockerfile en dev).
+      # Le runner GitHub n'a pas /vol/ et exigerait sudo pour le créer → on
+      # redirige vers un chemin writable sans privilèges.
+      MEDIA_ROOT: /tmp/media
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -75,6 +79,8 @@ jobs:
         run: sudo apt-get update && sudo apt-get install -y build-essential libpq-dev libjpeg-dev zlib1g-dev libmagic1
       - name: Install Python dependencies
         run: pip install -r requirements.txt
+      - name: Prepare media directory
+        run: mkdir -p /tmp/media
       - name: Run tests
         working-directory: app
         run: pytest
