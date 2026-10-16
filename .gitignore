@@ -208,3 +208,4 @@ __marimo__/
 
 # EICAR test files (manual malware scan verification, never commit)
 eicar*
+upwork-try.py
