@@ -29,4 +29,4 @@ RUN mkdir -p /vol/web/static /vol/web/media && chmod -R 755 /vol
 EXPOSE 8000
 
 # ✅ CMD avec le bon chemin (manage.py est dans /app/backend)
-CMD ["gunicorn", "--chdir", "/app", "app.wsgi:application", "--bind", "0.0.0.0:8000"]
+CMD ["sh", "-c", "cd /app && python manage.py migrate --noinput && exec gunicorn --chdir /app app.wsgi:application --bind 0.0.0.0:8000"]
