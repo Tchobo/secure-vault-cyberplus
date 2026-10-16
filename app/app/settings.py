@@ -123,6 +123,14 @@ DATABASES = {
         'PASSWORD': config('DB_PASS', default='postgres'),
         'HOST': config('DB_HOST', default='db'),
         'PORT': config('DB_PORT', default='5432'),
+        # ``DB_SSLMODE`` est configurable via env pour supporter les DB managées
+        # qui exigent SSL (Neon : require, Supabase : require, RDS : require).
+        # Défaut ``prefer`` : tente SSL si disponible, fallback plain sinon →
+        # fonctionne avec docker-compose local (pas de SSL) et avec les
+        # providers cloud (SSL requis).
+        'OPTIONS': {
+            'sslmode': config('DB_SSLMODE', default='prefer'),
+        },
     }
 }
 
