@@ -22,7 +22,11 @@ class UserRegistrationSerializer(serializers.ModelSerializer):
 
 
 class EmailVerificationSerializer(serializers.Serializer):
-    token = serializers.CharField(help_text="Token reçu dans le lien de vérification envoyé par email (valide 24h).")
+    email = serializers.EmailField(help_text="Email du compte à vérifier.")
+    code = serializers.RegexField(
+        regex=r'^\d{6}$',
+        help_text="Code OTP à 6 chiffres reçu par email (valide 15 minutes, max 5 tentatives).",
+    )
 
 
 class UserLoginSerializer(serializers.Serializer):
