@@ -1,3 +1,5 @@
+import logging
+
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import serializers, status
@@ -16,6 +18,8 @@ from users.serializers import (
 )
 from users.utils import generate_verification_token, verify_token
 
+logger = logging.getLogger(__name__)
+
 
 class UserRegistrationView(APIView):
     """Créer un nouveau compte utilisateur"""
@@ -27,17 +31,33 @@ class UserRegistrationView(APIView):
         description="Crée un compte utilisateur (inactif tant que l'email n'est pas vérifié) "
                     "et envoie un email contenant le lien de vérification.",
         request=UserRegistrationSerializer,
-        responses={201: UserRegistrationSerializer}
+        responses={201: inline_serializer(
+            name='UserRegistrationResponse',
+            fields={
+                'id': serializers.UUIDField(),
+                'email': serializers.EmailField(),
+                'firstname': serializers.CharField(),
+                'lastname': serializers.CharField(),
+                'created_at': serializers.DateTimeField(),
+                'message': serializers.CharField(),
+                'email_sent': serializers.BooleanField(),
+            }
+        )}
     )
     def post(self, request):
         serializer = UserRegistrationSerializer(data=request.data)
-        if serializer.is_valid():
-            user = serializer.save()
-            
-            # Envoyer email de vérification
-            token = generate_verification_token(user)
-            verification_url = f"{settings.FRONTEND_URL}/verify-email?token={token}"
-            
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+        user = serializer.save()
+
+        # Envoyer email de vérification. On ne veut pas 500 si SMTP down :
+        # le compte est créé, on signale juste au client que l'envoi a échoué
+        # pour qu'il puisse demander un renvoi (ou que l'admin regarde les logs).
+        token = generate_verification_token(user)
+        verification_url = f"{settings.FRONTEND_URL}/verify-email?token={token}"
+        email_sent = True
+        try:
             send_mail(
                 subject='Vérifiez votre email',
                 message=f'Cliquez sur ce lien pour vérifier votre email: {verification_url}',
@@ -45,9 +65,26 @@ class UserRegistrationView(APIView):
                 recipient_list=[user.email],
                 fail_silently=False,
             )
-            
-            return Response(serializer.data, status=status.HTTP_201_CREATED)
-        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+        except Exception:
+            logger.exception("Failed to send verification email to %s", user.email)
+            email_sent = False
+
+        if email_sent:
+            message = (
+                "Compte créé. Un email de vérification a été envoyé à votre adresse — "
+                "cliquez sur le lien pour activer votre compte. "
+                "Pensez à vérifier votre dossier spam si vous ne le voyez pas."
+            )
+        else:
+            message = (
+                "Compte créé, mais l'envoi de l'email de vérification a échoué. "
+                "Contactez le support ou réessayez plus tard."
+            )
+
+        return Response(
+            {**serializer.data, "message": message, "email_sent": email_sent},
+            status=status.HTTP_201_CREATED,
+        )
 
 
 class EmailVerificationView(APIView):
