@@ -192,8 +192,17 @@ CLAMAV_HOST = config('CLAMAV_HOST', default='clamav')
 CLAMAV_PORT = config('CLAMAV_PORT', default=3310, cast=int)
 CLAMAV_TIMEOUT = config('CLAMAV_TIMEOUT', default=30, cast=int)
 
-# Email (vérification de compte)
+# Email (vérification de compte) — SMTP configurable via env.
+# Default: console backend (dev/CI) qui écrit le mail dans stdout.
+# En prod on bascule sur SMTP (Gmail, Resend, Brevo…) via les env vars.
 EMAIL_BACKEND = config('EMAIL_BACKEND', default='django.core.mail.backends.console.EmailBackend')
+EMAIL_HOST = config('EMAIL_HOST', default='localhost')
+EMAIL_PORT = config('EMAIL_PORT', default=587, cast=int)
+EMAIL_HOST_USER = config('EMAIL_HOST_USER', default='')
+EMAIL_HOST_PASSWORD = config('EMAIL_HOST_PASSWORD', default='')
+EMAIL_USE_TLS = config('EMAIL_USE_TLS', default=True, cast=bool)
+EMAIL_USE_SSL = config('EMAIL_USE_SSL', default=False, cast=bool)
+EMAIL_TIMEOUT = config('EMAIL_TIMEOUT', default=30, cast=int)
 DEFAULT_FROM_EMAIL = config('DEFAULT_FROM_EMAIL', default='noreply@securevault.com')
 FRONTEND_URL = config('FRONTEND_URL', default='http://localhost:3000')
 
