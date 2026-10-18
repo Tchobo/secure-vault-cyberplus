@@ -17,6 +17,7 @@ boto3==1.34
 python-decouple==3.8
 cryptography>=42.0
 clamd==1.0.2  # anti-malware scanning via clamd daemon (see documents/malware.py)
+django-anymail[resend]==11.1  # SMTP ports blocked on Render Free → send via Resend HTTPS API
 pytest==7.4.4
 pytest-django==4.7.0
 pytest-cov==4.1.0
